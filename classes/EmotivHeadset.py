@@ -3,13 +3,14 @@ import os
 import platform
 import ctypes
 from ctypes import *
+from time import sleep
 if sys.platform.startswith('win32'):
     import msvcrt
 elif sys.platform.startswith('linux'):
     import atexit
     from select import select
 
-EDK_PATH_WIN32 = "bin/win32/edk.dll"
+EDK_PATH_WIN32 = "bin/win64/edk.dll"
 LIBEDK_PATH_ARMHF = "bin/armhf/libedk.so"
 LIBEDK_PATH_LIN64 = "bin/linux64/libedk.so"
 
@@ -57,15 +58,55 @@ class EmotivHeadsetInformation:
         IEE_EmoStateCreate.restype = c_void_p
         self.eState = IEE_EmoStateCreate()
 
+    def engineConnect(self):
+        if self.libEDK.IEE_EngineConnect("Emotiv Systems-5") != 0:
+            print "Emotiv Engine start up failed."
+            return False
+        return True
 
-    def kbhit(self):
-        # Returns True if keyboard character was hit, False otherwise.
-        if sys.platform.startswith('win32'):
-            return msvcrt.kbhit()   
-        else:
-            dr, dw, de = select([sys.stdin], [], [], 0)
-            return dr != []
-    
+    def engineDisconnect(self):
+        self.libEDK.IEE_EngineDisconnect()
+        self.libEDK.IEE_EmoStateFree(self.eState)
+        self.libEDK.IEE_EmoEngineEventFree(self.eEvent)
+
+    def checkDonglePresent(self):
+        for i in range(0, 4):
+            sleep(0.05)  # sleep in order to allow time for USB dongle detection
+            state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
+            if state == 0:
+                return True
+        return False  # three iterations passed and no dongle detected
+
+    def checkHeadsetPresent(self):
+        userID       = c_uint(0)
+        user         = pointer(userID)
+        for i in range(0, 10):
+            sleep(0.05)
+            state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
+            if state == 0:
+                eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
+                self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
+
+                if eventType == 64:  # self.libEDK.IEE_Event_enum.IEE_EmoStateUpdated
+                    return True
+        return False
+
+    def getWirelessSignalStrength(self):
+        userID       = c_uint(0)
+        user         = pointer(userID)
+        for i in range(0, 10):
+
+            self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
+
+            eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
+            self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
+
+            if eventType == 64:
+                self.libEDK.IEE_EmoEngineEventGetEmoState(self.eEvent, self.eState)
+                wirelessStrength = self.libEDK.IS_GetWirelessSignalStatus(self.eState)
+        return wirelessStrength
+
+
     def startLogging(self):
         userID       = c_uint(0)
         user         = pointer(userID)
@@ -85,7 +126,7 @@ class EmotivHeadsetInformation:
         # -------------------------------------------------------------------------
         
         print "==================================================================="
-        print "This example allows getting headset infor: contactquality, wireless strength, battery level."
+        print "This example allows getting headset info: contactquality, wireless strength, battery level."
         print "==================================================================="
         
         # -------------------------------------------------------------------------
@@ -96,14 +137,11 @@ class EmotivHeadsetInformation:
         print "Press any key to stop logging...\n"
         
         print header, "\n",
-        
-        while True:    
-            
-            if self.kbhit():
-                break
-            
+
+        while True:
+
             state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
-            
+
             if state == 0:
                 eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
                 self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)

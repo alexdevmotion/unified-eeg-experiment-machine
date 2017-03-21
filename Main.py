@@ -1,5 +1,6 @@
 from Tkinter import *
-from classes import HeadsetInformationLogger;
+from classes import EmotivHeadset
+from time import sleep
 
 class FullScreenWindow:
 
@@ -22,9 +23,18 @@ class FullScreenWindow:
         return "break"
 
 w = FullScreenWindow()
+# w.toggle_fullscreen()
 
-ehi = HeadsetInformationLogger.EmotivHeadsetInformation()
-ehi.startLogging()
+emotiv = EmotivHeadset.EmotivHeadsetInformation()
+emotiv.engineConnect()
+print 'Dongle present: ', emotiv.checkDonglePresent()
+print 'Headset present: ', emotiv.checkHeadsetPresent()
+while True:
+    sleep(0.5)
+    print 'Wirless signal strength: ', emotiv.getWirelessSignalStrength()
+
+emotiv.engineDisconnect()
+
 
 # Create a list
 li = 'Carl Patrick Lindsay Helmut Chris Gwen'.split()
