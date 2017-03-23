@@ -94,6 +94,7 @@ class EmotivHeadsetInformation:
     def getWirelessSignalStrength(self):
         userID       = c_uint(0)
         user         = pointer(userID)
+        wirelessStrength = -1
         for i in range(0, 10):
 
             self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
