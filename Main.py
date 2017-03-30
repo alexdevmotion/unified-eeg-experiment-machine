@@ -4,6 +4,8 @@ from threading import Thread
 import tkMessageBox
 import sys
 import Queue
+import tkFileDialog
+import os
 
 
 def threaded(fn):
@@ -69,6 +71,7 @@ class GUI:
         self.tk = tk
         self.threadedTasks = threadedTasks
         self.keepCheckingWirelessStrength = False
+        self.goFrameBuilt = False
 
         Label(self.tk, text="Supported headsets: Emotiv Insight").pack(anchor=W)
 
@@ -80,14 +83,6 @@ class GUI:
         self.donglePresentRectangle = self.donglePresentCanvas.create_rectangle(0, 0, 100, 50, fill="red")
         donglePresentFrame.pack(anchor=W)
 
-        headsetPresentFrame = Frame()
-        headsetPresentLabel = Label(headsetPresentFrame, text="Headset present: ")
-        headsetPresentLabel.pack(side=LEFT)
-        self.headsetPresentCanvas = Canvas(headsetPresentFrame, width=60, height=30)
-        self.headsetPresentCanvas.pack(side=LEFT)
-        self.headsetPresentRectangle = self.headsetPresentCanvas.create_rectangle(0, 0, 100, 50, fill="red")
-        headsetPresentFrame.pack(anchor=W)
-
         wirelessStrengthFrame = Frame()
         wirelessStrengthLabel = Label(wirelessStrengthFrame, text="Wireless strength: ")
         wirelessStrengthLabel.pack(side=LEFT)
@@ -96,12 +91,9 @@ class GUI:
         self.wirelessStrengthRectangle = self.wirelessStrengthCanvas.create_rectangle(0, 0, 100, 50, fill="red")
         wirelessStrengthFrame.pack(anchor=W)
 
-        self.startThreads()
+        self.tk.after(100, self.updateDongleThread)
 
         w.tk.mainloop()
-
-    def startThreads(self):
-        self.tk.after(100, self.updateDongleThread)
 
     def updateDongleThread(self):
         resultQueue = Queue.Queue()
@@ -109,17 +101,13 @@ class GUI:
         result = resultQueue.get()
         self.donglePresentCanvas.itemconfig(self.donglePresentRectangle, fill="red" if result == 0 else "green")
         if result:
-            self.tk.after(100, self.updateHeadsetThread)
-    
-    def updateHeadsetThread(self):
-        resultQueue = Queue.Queue()
-        self.threadedTasks.checkHeadsetPresent(resultQueue).join()
-        result = resultQueue.get()
-        self.headsetPresentCanvas.itemconfig(self.headsetPresentRectangle, fill="red" if result == 0 else "green")
-        if result:
             self.keepCheckingWirelessStrength = True
+            self.buildBrowseButtonFrame()
+            self.buildFolderInfoFrame()
+            self.buildImageIntervalFrame()
+            self.buildSubjectNameFrame()
             self.tk.after(100, self.updateWirelessThread)
-
+    
     def updateWirelessThread(self):
         resultQueue = Queue.Queue()
         self.threadedTasks.getWirelessSignalStrength(resultQueue).join()
@@ -136,6 +124,102 @@ class GUI:
         if self.keepCheckingWirelessStrength:
             self.tk.after(100, self.updateWirelessThread)
 
+    def buildBrowseButtonFrame(self):
+        browseButtonFrame = Frame()
+        browseButton = Button(browseButtonFrame, text="Choose experiment folder", command=self.onBrowseDirectory)
+        browseButton.pack(side=LEFT)
+        self.browseDirectoryVar = StringVar(self.tk)
+        browseDirectoryLabel = Label(browseButtonFrame, textvariable=self.browseDirectoryVar)
+        browseDirectoryLabel.pack(side=LEFT)
+        browseButtonFrame.pack(anchor=W)
+
+    def buildFolderInfoFrame(self):
+        folderInfoFrame = Frame()
+        folderInfoLabel = Label(folderInfoFrame, text="Number of files in folder: ")
+        folderInfoLabel.pack(side=LEFT)
+        self.folderInfoNoFilesVar = StringVar(self.tk)
+        folderInfoNoFiles = Label(folderInfoFrame, textvariable=self.folderInfoNoFilesVar)
+        folderInfoNoFiles.pack(side=LEFT)
+        folderInfoFrame.pack(anchor=W)
+
+    def buildImageIntervalFrame(self):
+        imageIntervalFrame = Frame()
+        imageIntervalLabel = Label(imageIntervalFrame, text="Image display interval (s): ")
+        imageIntervalLabel.pack(side=LEFT)
+        self.imageIntervalVar = StringVar(self.tk)
+        imageIntervalEntry = Entry(imageIntervalFrame, textvariable=self.imageIntervalVar)
+        imageIntervalEntry.pack(side=LEFT)
+        imageIntervalFrame.pack(anchor=W)
+        self.imageIntervalVar.trace('w', self.onChange)
+
+    def buildSubjectNameFrame(self):
+        subjectNameFrame = Frame()
+        subjectNameLabel = Label(subjectNameFrame, text="Subject name: ")
+        subjectNameLabel.pack(side=LEFT)
+        self.subjectNameVar = StringVar(self.tk)
+        subjectNameEntry = Entry(subjectNameFrame, textvariable=self.subjectNameVar)
+        subjectNameEntry.pack(side=LEFT)
+        subjectNameFrame.pack(anchor=W)
+        self.subjectNameVar.trace('w', self.onChange)
+
+    def buildGoFrame(self):
+        self.goFrame = Frame()
+        goButton = Button(self.goFrame, text="GO", command=self.go)
+        goButton.config(height=3, width=25)
+        goButton.pack(side=LEFT)
+        self.goFrame.pack(anchor=W)
+        self.goFrameBuilt = True
+
+    def destroyGoFrame(self):
+        if self.goFrameBuilt:
+            self.goFrame.pack_forget()
+            self.goFrameBuilt = False
+
+    def isImageDirectoryValid(self):
+        noFiles = self.folderInfoNoFilesVar.get()
+        return int(noFiles) > 0
+
+    def isImageIntervalValid(self):
+        imageInterval = self.imageIntervalVar.get()
+        return self.representsInt(imageInterval) and int(imageInterval) > 0
+
+    def isSubjectNameValid(self):
+        subjectName = self.subjectNameVar.get()
+        return len(subjectName) > 0
+
+    def showHideGoFrame(self):
+        if not self.goFrameBuilt and self.isImageDirectoryValid() and self.isImageIntervalValid() and self.isSubjectNameValid():
+            self.buildGoFrame()
+        else:
+            self.destroyGoFrame()
+
+    def onChange(self, a, b, c):
+        self.showHideGoFrame()
+
+    def onBrowseDirectory(self):
+        dir = tkFileDialog.askdirectory()
+        self.browseDirectoryVar.set(dir)
+        noFiles = self.getNoFilesInDirectory(dir)
+        self.folderInfoNoFilesVar.set(noFiles)
+        self.showHideGoFrame()
+
+    def getNoFilesInDirectory(self, dir):
+        return len([name for name in os.listdir(dir) if os.path.isfile(os.path.join(dir, name))])
+
+    def representsInt(self, s):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
+
+    def go(self):
+        dir = self.browseDirectoryVar.get()
+        images = os.listDir(dir)
+        self.displayImage(images[0])
+
+    def displayImage(self, path):
+        print path
 
 emotivHeadsetTasks = EmotivHeadsetThreadedTasks()
 
