@@ -4,12 +4,15 @@ import platform
 import ctypes
 from ctypes import *
 from time import sleep
+from time import time
+from array import *
 if sys.platform.startswith('win32'):
     import msvcrt
 elif sys.platform.startswith('linux'):
     import atexit
     from select import select
 import struct
+import csv
 
 if struct.calcsize("P") * 8 == 32:
     EDK_PATH_WIN = "bin/win32/edk.dll"
@@ -45,15 +48,15 @@ class EmotivHeadsetInformation:
         IS_GetTimeFromStart = self.libEDK.IS_GetTimeFromStart
         IS_GetTimeFromStart.argtypes = [ctypes.c_void_p]
         IS_GetTimeFromStart.restype = c_float
-        
+
         IS_GetWirelessSignalStatus = self.libEDK.IS_GetWirelessSignalStatus
         IS_GetWirelessSignalStatus.restype = c_int
         IS_GetWirelessSignalStatus.argtypes = [c_void_p]
-        
+
         IS_GetContactQuality = self.libEDK.IS_GetContactQuality
         IS_GetContactQuality.restype = c_int
         IS_GetContactQuality.argtypes = [c_void_p, c_int]
-        
+
         IEE_EmoEngineEventGetEmoState = self.libEDK.IEE_EmoEngineEventGetEmoState
         IEE_EmoEngineEventGetEmoState.argtypes = [c_void_p, c_void_p]
         IEE_EmoEngineEventGetEmoState.restype = c_int
@@ -61,6 +64,8 @@ class EmotivHeadsetInformation:
         IEE_EmoStateCreate = self.libEDK.IEE_EmoStateCreate
         IEE_EmoStateCreate.restype = c_void_p
         self.eState = IEE_EmoStateCreate()
+
+        self.ready = 0
 
     def engineConnect(self):
         if self.libEDK.IEE_EngineConnect("Emotiv Systems-5") != 0:
@@ -74,31 +79,24 @@ class EmotivHeadsetInformation:
         self.libEDK.IEE_EmoEngineEventFree(self.eEvent)
 
     def checkDonglePresent(self):
+        userID = c_uint(0)
+        user = pointer(userID)
         for i in range(0, 4):
-            sleep(0.05)  # sleep in order to allow time for USB dongle detection
-            state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
-            if state == 0:
-                return True
-        return False  # three iterations passed and no dongle detected
-
-    def checkHeadsetPresent(self):
-        userID       = c_uint(0)
-        user         = pointer(userID)
-        for i in range(0, 10):
-            sleep(0.05)
             state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
             if state == 0:
                 eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
                 self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
-
-                if eventType == 64:  # self.libEDK.IEE_Event_enum.IEE_EmoStateUpdated
-                    return True
+                if eventType == 16:
+                    self.ready = 1
+                    self.libEDK.IEE_FFTSetWindowingType(userID, 1)
+                return True
+            sleep(0.1)
         return False
 
     def getWirelessSignalStrength(self):
-        userID       = c_uint(0)
-        user         = pointer(userID)
         wirelessStrength = -1
+        userID = c_uint(0)
+        user = pointer(userID)
         for i in range(0, 10):
 
             self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
@@ -106,14 +104,19 @@ class EmotivHeadsetInformation:
             eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
             self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
 
+            if eventType == 16:
+                self.ready = 1
+                self.libEDK.IEE_FFTSetWindowingType(userID, 1)
             if eventType == 64:
                 self.libEDK.IEE_EmoEngineEventGetEmoState(self.eEvent, self.eState)
                 wirelessStrength = self.libEDK.IS_GetWirelessSignalStatus(self.eState)
+
+            sleep(0.1)
         return wirelessStrength
 
     def getWirelessStrengthBatteryLevelContactQuality(self):
-        userID       = c_uint(0)
-        user         = pointer(userID)
+        userID = c_uint(0)
+        user = pointer(userID)
         batteryLevel     = c_long(0)
         batteryLevelP    = pointer(batteryLevel)
         maxBatteryLevel  = c_int(0)
@@ -125,6 +128,9 @@ class EmotivHeadsetInformation:
             eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
             self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
 
+            if eventType == 16:
+                self.ready = 1
+                self.libEDK.IEE_FFTSetWindowingType(userID, 1)
             if eventType == 64:
                 self.libEDK.IEE_EmoEngineEventGetEmoState(self.eEvent, self.eState)
                 wirelessStrength = self.libEDK.IS_GetWirelessSignalStatus(self.eState)
@@ -143,10 +149,70 @@ class EmotivHeadsetInformation:
                     self.libEDK.IS_GetContactQuality(self.eState, 12),
                     self.libEDK.IS_GetContactQuality(self.eState, 16),
                 ]
+            sleep(0.1)
 
         return [-1] * 7
 
-    def startLogging(self):
+    def startEEGLoggingToFile(self, filePath, initialTime):
+        self.keepLogging = True
+        userID = c_uint(0)
+        user = pointer(userID)
+        state = c_int(0)
+
+        alphaValue = c_double(0)
+        low_betaValue = c_double(0)
+        high_betaValue = c_double(0)
+        gammaValue = c_double(0)
+        thetaValue = c_double(0)
+
+        alpha = pointer(alphaValue)
+        low_beta = pointer(low_betaValue)
+        high_beta = pointer(high_betaValue)
+        gamma = pointer(gammaValue)
+        theta = pointer(thetaValue)
+
+        channelList = array('I', [3, 7, 9, 12, 16])  # IED_AF3, IED_AF4, IED_T7, IED_T8, IED_Pz
+
+        channels = ["AF3", "AF4", "T7", "T8", "Pz"]
+        bands = ["Theta", "Alpha", "LBeta", "HBeta", "Gamma"]
+        header = ["Timestamp", "Filename"]
+        for channel in channels:
+            for band in bands:
+                header.append(channel + " " + band)
+
+        csvfile = open(filePath, "wb")
+        csvwriter = csv.writer(csvfile, delimiter=",")
+        csvwriter.writerow(header)
+
+        while self.keepLogging:
+            state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
+
+            if state == 0:
+                eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
+                self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
+                if eventType == 16:
+                    self.ready = 1
+                    self.libEDK.IEE_FFTSetWindowingType(userID, 1)
+
+                if self.ready == 1:
+                    row = [(time() - initialTime), self.currentFileName]
+                    for i in channelList:
+                        self.libEDK.IEE_GetAverageBandPowers(userID, i, theta, alpha, low_beta, high_beta, gamma)
+                        row.append(thetaValue.value)
+                        row.append(alphaValue.value)
+                        row.append(low_betaValue.value)
+                        row.append(high_betaValue.value)
+                        row.append(gammaValue.value)
+                    csvwriter.writerow(row)
+            sleep(0.1)
+
+    def stopLoggingToFile(self):
+        self.keepLogging = False
+
+    def setCurrentFileName(self, fileName):
+        self.currentFileName = fileName
+
+    def startStateLogging(self):
         userID       = c_uint(0)
         user         = pointer(userID)
         ready        = 0
@@ -161,21 +227,11 @@ class EmotivHeadsetInformation:
         systemUpTime     = c_float(0.0)
         wirelessStrength = c_int(0)
         
-        header = "Time, Wireless Strength, Battery Level, AF3, T7, Pz, T8, AF4"
         # -------------------------------------------------------------------------
-        
         print "==================================================================="
         print "This example allows getting headset info: contactquality, wireless strength, battery level."
         print "==================================================================="
-        
-        # -------------------------------------------------------------------------
-        
-        if self.libEDK.IEE_EngineConnect("Emotiv Systems-5") != 0:
-            print "Emotiv Engine start up failed."
-        
-        print "Press any key to stop logging...\n"
-        
-        print header, "\n",
+        print "Time, Wireless Strength, Battery Level, AF3, T7, Pz, T8, AF4"
 
         while True:
 
@@ -217,3 +273,56 @@ class EmotivHeadsetInformation:
         self.libEDK.IEE_EngineDisconnect()
         self.libEDK.IEE_EmoStateFree(self.eState)
         self.libEDK.IEE_EmoEngineEventFree(self.eEvent)
+
+    def startEEGLogging(self):
+        userID = c_uint(0)
+        user = pointer(userID)
+        ready = 0
+        state = c_int(0)
+        
+        alphaValue = c_double(0)
+        low_betaValue = c_double(0)
+        high_betaValue = c_double(0)
+        gammaValue = c_double(0)
+        thetaValue = c_double(0)
+        
+        alpha = pointer(alphaValue)
+        low_beta = pointer(low_betaValue)
+        high_beta = pointer(high_betaValue)
+        gamma = pointer(gammaValue)
+        theta = pointer(thetaValue)
+        
+        channelList = array('I', [3, 7, 9, 12, 16])  # IED_AF3, IED_AF4, IED_T7, IED_T8, IED_Pz
+        
+        # -------------------------------------------------------------------------
+        print "==================================================================="
+        print "Example to get the average band power for a specific channel from the latest epoch."
+        print "==================================================================="
+        print "Theta, Alpha, Low_beta, High_beta, Gamma \n"
+        
+        while True:
+            state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
+        
+            if state == 0:
+                eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
+                self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
+                if eventType == 16:  # self.libEDK.IEE_Event_enum.IEE_UserAdded
+                    ready = 1
+                    self.libEDK.IEE_FFTSetWindowingType(userID, 1)  # 1: self.libEDK.IEE_WindowingTypes_enum.IEE_HAMMING
+                    print "User added"
+        
+                if ready == 1:
+                    for i in channelList:
+                        result = c_int(0)
+                        result = self.libEDK.IEE_GetAverageBandPowers(userID, i, theta, alpha, low_beta, high_beta, gamma)
+        
+                        if result == 0:  # EDK_OK
+                            print "%.6f, %.6f, %.6f, %.6f, %.6f \n" % (thetaValue.value, alphaValue.value, low_betaValue.value, high_betaValue.value, gammaValue.value)
+        
+            elif state != 0x0600:
+                print "Internal error in Emotiv Engine!"
+            sleep(0.1)
+        # -------------------------------------------------------------------------
+        self.libEDK.IEE_EngineDisconnect()
+        self.libEDK.IEE_EmoStateFree(self.eState)
+        self.libEDK.IEE_EmoEnginself.eEventFree(self.eEvent)
