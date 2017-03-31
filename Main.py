@@ -1,6 +1,7 @@
 from Tkinter import *
 from classes import EmotivHeadset
 from threading import Thread
+from PIL import ImageTk, Image
 import tkMessageBox
 import sys
 import Queue
@@ -18,8 +19,9 @@ def threaded(fn):
 
 class FullScreenWindow:
 
-    def __init__(self, emotivHeadsetTasks):
-        self.emotivHeadsetTasks = emotivHeadsetTasks
+    def __init__(self, closingCallback):
+        self.closingCallback = closingCallback
+
         self.tk = Tk()
         self.frame = Frame(self.tk)
         self.frame.pack()
@@ -43,7 +45,8 @@ class FullScreenWindow:
     def on_closing(self):
         if tkMessageBox.askokcancel("Quit", "Are you sure you want to exit?"):
             self.tk.destroy()
-            self.emotivHeadsetTasks.emotiv.engineDisconnect()
+            if self.closingCallback:
+                self.closingCallback()
             sys.exit(0)
 
 
@@ -57,12 +60,8 @@ class EmotivHeadsetThreadedTasks:
         result.put(self.emotiv.checkDonglePresent())
 
     @threaded
-    def checkHeadsetPresent(self, result):
-        result.put(self.emotiv.checkHeadsetPresent())
-
-    @threaded
-    def getWirelessSignalStrength(self, result):
-        result.put(self.emotiv.getWirelessSignalStrength())
+    def getWirelessStrengthBatteryLevelContactQuality(self, result):
+        result.put(self.emotiv.getWirelessStrengthBatteryLevelContactQuality())
 
 
 class GUI:
@@ -72,6 +71,8 @@ class GUI:
         self.threadedTasks = threadedTasks
         self.keepCheckingWirelessStrength = False
         self.goFrameBuilt = False
+        self.imageWindowDestroyed = True
+        self.lastWirelessCheck = 0
 
         Label(self.tk, text="Supported headsets: Emotiv Insight").pack(anchor=W)
 
@@ -84,11 +85,19 @@ class GUI:
         donglePresentFrame.pack(anchor=W)
 
         wirelessStrengthFrame = Frame()
+
         wirelessStrengthLabel = Label(wirelessStrengthFrame, text="Wireless strength: ")
         wirelessStrengthLabel.pack(side=LEFT)
-        self.wirelessStrengthCanvas = Canvas(wirelessStrengthFrame, width=60, height=30)
+        self.wirelessStrengthCanvas = Canvas(wirelessStrengthFrame, width=40, height=20)
         self.wirelessStrengthCanvas.pack(side=LEFT)
         self.wirelessStrengthRectangle = self.wirelessStrengthCanvas.create_rectangle(0, 0, 100, 50, fill="red")
+
+        batteryLevelLabel = Label(wirelessStrengthFrame, text="Battery level: ")
+        batteryLevelLabel.pack(side=LEFT)
+        self.batteryLevelVar = StringVar(self.tk)
+        batteryLevel = Label(wirelessStrengthFrame, textvariable=self.batteryLevelVar)
+        batteryLevel.pack(side=LEFT)
+
         wirelessStrengthFrame.pack(anchor=W)
 
         self.tk.after(100, self.updateDongleThread)
@@ -110,17 +119,22 @@ class GUI:
     
     def updateWirelessThread(self):
         resultQueue = Queue.Queue()
-        self.threadedTasks.getWirelessSignalStrength(resultQueue).join()
+        self.threadedTasks.getWirelessStrengthBatteryLevelContactQuality(resultQueue).join()
         result = resultQueue.get()
-        if result == 0:
+        wirelessStrength = result[0]
+        batteryLevel = result[1]
+        self.batteryLevelVar.set(batteryLevel)
+        self.lastWirelessCheck = wirelessStrength
+        if wirelessStrength == 0:
             fill = "red"
-        elif result == 1:
+        elif wirelessStrength == 1:
             fill = "yellow"
-        elif result == 2:
+        elif wirelessStrength == 2:
             fill = "green"
         else:
             fill = "red"
         self.wirelessStrengthCanvas.itemconfig(self.wirelessStrengthRectangle, fill=fill)
+        self.showHideGoFrame()
         if self.keepCheckingWirelessStrength:
             self.tk.after(100, self.updateWirelessThread)
 
@@ -150,6 +164,7 @@ class GUI:
         imageIntervalEntry = Entry(imageIntervalFrame, textvariable=self.imageIntervalVar)
         imageIntervalEntry.pack(side=LEFT)
         imageIntervalFrame.pack(anchor=W)
+        imageIntervalEntry.insert(0, "1")
         self.imageIntervalVar.trace('w', self.onChange)
 
     def buildSubjectNameFrame(self):
@@ -175,9 +190,12 @@ class GUI:
             self.goFrame.pack_forget()
             self.goFrameBuilt = False
 
+    def isWirelessStrengthValid(self):
+        return self.lastWirelessCheck > 0
+
     def isImageDirectoryValid(self):
         noFiles = self.folderInfoNoFilesVar.get()
-        return int(noFiles) > 0
+        return noFiles and int(noFiles) > 0
 
     def isImageIntervalValid(self):
         imageInterval = self.imageIntervalVar.get()
@@ -188,8 +206,9 @@ class GUI:
         return len(subjectName) > 0
 
     def showHideGoFrame(self):
-        if not self.goFrameBuilt and self.isImageDirectoryValid() and self.isImageIntervalValid() and self.isSubjectNameValid():
-            self.buildGoFrame()
+        if self.isWirelessStrengthValid() and self.isImageDirectoryValid() and self.isImageIntervalValid() and self.isSubjectNameValid():
+            if not self.goFrameBuilt:
+                self.buildGoFrame()
         else:
             self.destroyGoFrame()
 
@@ -213,17 +232,57 @@ class GUI:
         except ValueError:
             return False
 
+    def experimentStoppedByUser(self, event=None):
+        self.imageWindow.destroy()
+        self.imageWindowDestroyed = True
+
     def go(self):
-        dir = self.browseDirectoryVar.get()
-        images = os.listDir(dir)
-        self.displayImage(images[0])
+        self.dir = self.browseDirectoryVar.get()
+        self.images = os.listdir(self.dir)
+        self.curImageIndex = 0
+        self.imageInterval = int(self.imageIntervalVar.get())
+
+        self.imageWindow = Toplevel(self.tk)
+        self.imageWindow.attributes("-fullscreen", True)
+        self.imageWindow.focus_force()
+        self.imageWindow.bind("<Escape>", self.experimentStoppedByUser)
+        self.imageWindowDestroyed = False
+
+        screen_width = self.imageWindow.winfo_screenwidth()
+        screen_height = self.imageWindow.winfo_screenheight()
+        self.screenSize = screen_width, screen_height
+
+        self.imagePanel = Label(self.imageWindow, image=None)
+        self.imagePanel.pack(side="bottom", fill="both", expand="yes")
+
+        self.handleNextImage()
+        self.imageWindow.mainloop()
+
+    def handleNextImage(self):
+        if not self.imageWindowDestroyed:
+            self.displayImage(self.dir + "/" + str(self.images[self.curImageIndex]))
+            self.curImageIndex = self.curImageIndex + 1
+            self.imageWindow.after(self.imageInterval * 1000, self.handleNextImage)
 
     def displayImage(self, path):
         print path
+        img = Image.open(path)
+        img.thumbnail(self.screenSize, Image.ANTIALIAS)
+
+        photoimg = ImageTk.PhotoImage(img)
+
+        self.imagePanel.configure(image=photoimg)
+        self.imagePanel.image = photoimg
+
+
 
 emotivHeadsetTasks = EmotivHeadsetThreadedTasks()
 
-w = FullScreenWindow(emotivHeadsetTasks)
+
+def onMainWindowClose():
+    emotivHeadsetTasks.emotiv.engineDisconnect()
+
+w = FullScreenWindow(onMainWindowClose)
 w.tk.title("EEG Unified Logger a.k.a. The Experiment Machine")
 # w.toggle_fullscreen()
 gui = GUI(w.tk, emotivHeadsetTasks)

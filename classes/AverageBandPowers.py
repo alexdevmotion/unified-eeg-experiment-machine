@@ -2,8 +2,12 @@ import sys
 import os
 import platform
 import time
+import struct
 
-EDK_PATH_WIN32 = "bin/win32/edk.dll"
+if struct.calcsize("P") * 8 == 32:
+    EDK_PATH_WIN = "bin/win32/edk.dll"
+else:
+    EDK_PATH_WIN = "bin/win64/edk.dll"
 LIBEDK_PATH_ARMHF = "bin/armhf/libedk.so"
 LIBEDK_PATH_LIN64 = "bin/linux64/libedk.so"
 
@@ -20,7 +24,7 @@ from ctypes import *
 
 try:
     if sys.platform.startswith('win32'):
-        libEDK = cdll.LoadLibrary(EDK_PATH_WIN32)
+        libEDK = cdll.LoadLibrary(EDK_PATH_WIN)
     elif sys.platform.startswith('linux'):
         srcDir = os.getcwd()
         if platform.machine().startswith('arm'):

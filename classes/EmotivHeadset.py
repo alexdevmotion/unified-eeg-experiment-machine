@@ -9,8 +9,12 @@ if sys.platform.startswith('win32'):
 elif sys.platform.startswith('linux'):
     import atexit
     from select import select
+import struct
 
-EDK_PATH_WIN32 = "bin/win64/edk.dll"
+if struct.calcsize("P") * 8 == 32:
+    EDK_PATH_WIN = "bin/win32/edk.dll"
+else:
+    EDK_PATH_WIN = "bin/win64/edk.dll"
 LIBEDK_PATH_ARMHF = "bin/armhf/libedk.so"
 LIBEDK_PATH_LIN64 = "bin/linux64/libedk.so"
 
@@ -20,7 +24,7 @@ class EmotivHeadsetInformation:
     def __init__(self):
         try:
             if sys.platform.startswith('win32'):
-                self.libEDK = cdll.LoadLibrary(EDK_PATH_WIN32)
+                self.libEDK = cdll.LoadLibrary(EDK_PATH_WIN)
             elif sys.platform.startswith('linux'):
                 srcDir = os.getcwd()
                 if platform.machine().startswith('arm'):
@@ -107,6 +111,40 @@ class EmotivHeadsetInformation:
                 wirelessStrength = self.libEDK.IS_GetWirelessSignalStatus(self.eState)
         return wirelessStrength
 
+    def getWirelessStrengthBatteryLevelContactQuality(self):
+        userID       = c_uint(0)
+        user         = pointer(userID)
+        batteryLevel     = c_long(0)
+        batteryLevelP    = pointer(batteryLevel)
+        maxBatteryLevel  = c_int(0)
+        maxBatteryLevelP = pointer(maxBatteryLevel)
+        for i in range(0, 10):
+
+            self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
+
+            eventType = self.libEDK.IEE_EmoEngineEventGetType(self.eEvent)
+            self.libEDK.IEE_EmoEngineEventGetUserId(self.eEvent, user)
+
+            if eventType == 64:
+                self.libEDK.IEE_EmoEngineEventGetEmoState(self.eEvent, self.eState)
+                wirelessStrength = self.libEDK.IS_GetWirelessSignalStatus(self.eState)
+
+                if wirelessStrength == 0:
+                    return [0] * 7
+
+                self.libEDK.IS_GetBatteryChargeLevel(self.eState, batteryLevelP, maxBatteryLevelP)
+
+                return [
+                    wirelessStrength,
+                    batteryLevel.value,
+                    self.libEDK.IS_GetContactQuality(self.eState, 3),
+                    self.libEDK.IS_GetContactQuality(self.eState, 7),
+                    self.libEDK.IS_GetContactQuality(self.eState, 9),
+                    self.libEDK.IS_GetContactQuality(self.eState, 12),
+                    self.libEDK.IS_GetContactQuality(self.eState, 16),
+                ]
+
+        return [-1] * 7
 
     def startLogging(self):
         userID       = c_uint(0)
