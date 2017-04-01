@@ -86,6 +86,7 @@ class GUI:
             self.buildBrowseButtonFrame()
             self.buildFolderInfoFrame()
             self.buildImageIntervalFrame()
+            self.buildTotalTimeFrame()
             self.buildSubjectNameFrame()
             self.tk.after(100, self.updateWirelessThread)
 
@@ -156,6 +157,15 @@ class GUI:
         imageIntervalEntry.insert(0, "1")
         self.imageIntervalVar.trace('w', self.onChange)
 
+    def buildTotalTimeFrame(self):
+        totalTimeFrame = Frame()
+        totalTimeLabel = Label(totalTimeFrame, text="Experiment duration: ")
+        totalTimeLabel.pack(side=LEFT)
+        self.totalTimeVar = StringVar(self.tk)
+        totalTime = Label(totalTimeFrame, textvariable=self.totalTimeVar)
+        totalTime.pack(side=LEFT)
+        totalTimeFrame.pack(anchor=W)
+
     def buildSubjectNameFrame(self):
         subjectNameFrame = Frame()
         subjectNameLabel = Label(subjectNameFrame, text="Subject name: ")
@@ -201,15 +211,28 @@ class GUI:
         else:
             self.destroyGoFrame()
 
+    def updateTotalTime(self):
+        if self.isImageDirectoryValid() and self.isImageIntervalValid():
+            imageInterval = int(self.imageIntervalVar.get())
+            noFiles = int(self.folderInfoNoFilesVar.get())
+            seconds = imageInterval * noFiles
+            if seconds < 60:
+                self.totalTimeVar.set(str(seconds) + "s")
+            else:
+                self.totalTimeVar.set(str(seconds/60) + "m" + str(seconds % 60) + "s")
+        else:
+            self.totalTimeVar.set("")
+
     def onChange(self, a, b, c):
         self.showHideGoFrame()
+        self.updateTotalTime()
 
     def onBrowseDirectory(self):
         dir = tkFileDialog.askdirectory()
         self.browseDirectoryVar.set(dir)
         noFiles = Helpers.getNoImagesInDirectory(dir)
         self.folderInfoNoFilesVar.set(noFiles)
-        self.showHideGoFrame()
+        self.onChange(None, None, None)
 
     def go(self):
         dir = self.browseDirectoryVar.get()
