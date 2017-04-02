@@ -3,13 +3,11 @@ from classes import Helpers
 from time import time
 import Queue
 import tkFileDialog
-import os
 import datetime
 
 
 class GUI:
     def __init__(self, tk, threadedTasks):
-
         self.tk = tk
         self.threadedTasks = threadedTasks
         self.keepCheckingWirelessStrength = False
@@ -24,7 +22,7 @@ class GUI:
         donglePresentLabel.pack(side=LEFT)
         self.donglePresentCanvas = Canvas(donglePresentFrame, width=60, height=30)
         self.donglePresentCanvas.pack(side=RIGHT)
-        self.donglePresentRectangle = self.donglePresentCanvas.create_rectangle(0, 0, 60, 30, fill="black")
+        self.donglePresentRectangle = self.donglePresentCanvas.create_rectangle(0, 0, 100, 100, fill="black")
         donglePresentFrame.pack(anchor=W)
 
         wirelessStrengthFrame = Frame()
@@ -33,7 +31,7 @@ class GUI:
         wirelessStrengthLabel.pack(side=LEFT)
         self.wirelessStrengthCanvas = Canvas(wirelessStrengthFrame, width=40, height=20)
         self.wirelessStrengthCanvas.pack(side=LEFT)
-        self.wirelessStrengthRectangle = self.wirelessStrengthCanvas.create_rectangle(0, 0, 40, 20, fill="black")
+        self.wirelessStrengthRectangle = self.wirelessStrengthCanvas.create_rectangle(0, 0, 100, 100, fill="black")
 
         batteryLevelLabel = Label(wirelessStrengthFrame, text="Battery level: ")
         batteryLevelLabel.pack(side=LEFT)
@@ -87,6 +85,7 @@ class GUI:
             self.buildFolderInfoFrame()
             self.buildImageIntervalFrame()
             self.buildTotalTimeFrame()
+            self.buildCropImagesFrame()
             self.buildSubjectNameFrame()
             self.tk.after(100, self.updateWirelessThread)
 
@@ -154,7 +153,7 @@ class GUI:
         imageIntervalEntry = Entry(imageIntervalFrame, textvariable=self.imageIntervalVar)
         imageIntervalEntry.pack(side=LEFT)
         imageIntervalFrame.pack(anchor=W)
-        imageIntervalEntry.insert(0, "1")
+        imageIntervalEntry.insert(0, "5")
         self.imageIntervalVar.trace('w', self.onChange)
 
     def buildTotalTimeFrame(self):
@@ -166,12 +165,20 @@ class GUI:
         totalTime.pack(side=LEFT)
         totalTimeFrame.pack(anchor=W)
 
+    def buildCropImagesFrame(self):
+        cropImagesFrame = Frame()
+        self.cropImagesVar = IntVar(self.tk)
+        cropImages = Checkbutton(cropImagesFrame, text="Crop and resize images to fill screen", variable=self.cropImagesVar)
+        self.cropImagesVar.set(1)
+        cropImages.pack(side=LEFT)
+        cropImagesFrame.pack(anchor=W)
+
     def buildSubjectNameFrame(self):
         subjectNameFrame = Frame()
         subjectNameLabel = Label(subjectNameFrame, text="Subject name: ")
         subjectNameLabel.pack(side=LEFT)
         self.subjectNameVar = StringVar(self.tk)
-        subjectNameEntry = Entry(subjectNameFrame, textvariable=self.subjectNameVar)
+        subjectNameEntry = Entry(subjectNameFrame, textvariable=self.subjectNameVar, width=50)
         subjectNameEntry.pack(side=LEFT)
         subjectNameFrame.pack(anchor=W)
         self.subjectNameVar.trace('w', self.onChange)
@@ -238,8 +245,9 @@ class GUI:
         dir = self.browseDirectoryVar.get()
         images = Helpers.getImagesInDirectory(dir)
         imageInterval = int(self.imageIntervalVar.get())
+        crop = int(self.cropImagesVar.get())
 
-        self.imageWindow = Helpers.ImageWindow(self.tk, dir, images, imageInterval, self.threadedTasks)
+        self.imageWindow = Helpers.ImageWindow(self.tk, dir, images, imageInterval, self.threadedTasks, crop)
 
         self.tk.after(100, self.startDisplayingImagesAndLoggingToFileSimultaneously)
 

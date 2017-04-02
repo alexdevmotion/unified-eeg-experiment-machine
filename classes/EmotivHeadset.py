@@ -23,7 +23,6 @@ LIBEDK_PATH_LIN64 = "bin/linux64/libedk.so"
 
 
 class EmotivHeadsetInformation:
-
     def __init__(self):
         try:
             if sys.platform.startswith('win32'):
@@ -184,6 +183,8 @@ class EmotivHeadsetInformation:
         csvwriter = csv.writer(csvfile, delimiter=",")
         csvwriter.writerow(header)
 
+        previousFirstSensorValues = [0, 0, 0, 0, 0]
+
         while self.keepLogging:
             state = self.libEDK.IEE_EngineGetNextEvent(self.eEvent)
 
@@ -196,14 +197,18 @@ class EmotivHeadsetInformation:
 
                 if self.ready == 1:
                     row = [(time() - initialTime), self.currentFileName]
+                    writerow = True
                     for i in channelList:
                         self.libEDK.IEE_GetAverageBandPowers(userID, i, theta, alpha, low_beta, high_beta, gamma)
-                        row.append(thetaValue.value)
-                        row.append(alphaValue.value)
-                        row.append(low_betaValue.value)
-                        row.append(high_betaValue.value)
-                        row.append(gammaValue.value)
-                    csvwriter.writerow(row)
+                        values = [thetaValue.value, alphaValue.value, low_betaValue.value, high_betaValue.value, gammaValue.value]
+                        if i == 3:
+                            if values == previousFirstSensorValues:  # prevent duplicate consecutive values
+                                writerow = False
+                                break
+                            previousFirstSensorValues = values
+                        row.extend(values)
+                    if writerow:
+                        csvwriter.writerow(row)
             sleep(0.1)
 
     def stopLoggingToFile(self):

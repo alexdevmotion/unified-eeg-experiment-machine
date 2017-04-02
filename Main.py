@@ -4,6 +4,7 @@ from classes import Gui
 
 emotivHeadsetTasks = EmotivTasks.EmotivHeadsetThreadedTasks()
 
+
 def onMainWindowClose():
     emotivHeadsetTasks.emotiv.engineDisconnect()
 

@@ -27,7 +27,6 @@ def representsInt(s):
 
 
 class FullScreenWindow:
-
     def __init__(self, closingCallback):
         self.closingCallback = closingCallback
 
@@ -63,13 +62,13 @@ class FullScreenWindow:
 
 
 class ImageWindow:
-
-    def __init__(self, tk, dir, images, imageInterval, threadedTasks):
+    def __init__(self, tk, dir, images, imageInterval, threadedTasks, crop):
         self.tk = tk
         self.dir = dir
         self.images = images
         self.imageInterval = imageInterval
         self.threadedTasks = threadedTasks
+        self.crop = crop
 
         self.curImageIndex = 0
 
@@ -78,10 +77,6 @@ class ImageWindow:
         self.window.focus_force()
         self.window.bind("<Escape>", self.experimentStoppedByUser)
         self.windowDestroyed = False
-
-        screen_width = self.window.winfo_screenwidth()
-        screen_height = self.window.winfo_screenheight()
-        self.screenSize = screen_width, screen_height
 
         self.imagePanel = Label(self.window, image=None)
         self.imagePanel.pack(side="bottom", fill="both", expand="yes")
@@ -105,9 +100,31 @@ class ImageWindow:
 
     def displayImage(self, path):
         img = Image.open(path)
-        img.thumbnail(self.screenSize, Image.ANTIALIAS)
+        if self.crop:
+            img = self.cropAndResize(img, self.window.winfo_screenwidth(), self.window.winfo_screenheight())
 
         photoimg = ImageTk.PhotoImage(img)
 
         self.imagePanel.configure(image=photoimg)
         self.imagePanel.image = photoimg
+
+    def cropAndResize(self, image, ideal_width, ideal_height):
+        width  = image.size[0]
+        height = image.size[1]
+
+        aspect = width / float(height)
+
+        ideal_aspect = ideal_width / float(ideal_height)
+
+        if aspect > ideal_aspect:
+            # Then crop the left and right edges:
+            new_width = int(ideal_aspect * height)
+            offset = (width - new_width) / 2
+            resize = (offset, 0, width - offset, height)
+        else:
+            # ... crop the top and bottom:
+            new_height = int(width / ideal_aspect)
+            offset = (height - new_height) / 2
+            resize = (0, offset, width, height - offset)
+
+        return image.crop(resize).resize((ideal_width, ideal_height), Image.ANTIALIAS)
