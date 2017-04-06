@@ -257,7 +257,8 @@ class GUI:
         dir = str(self.browseDirectoryVar.get())
         subjectName = self.subjectNameVar.get()
         dayHourStr = datetime.datetime.now().strftime("%d%m%Y_%H%M%S")
-        csvOutputFilePath = dir + "/_" + subjectName + "_" + dir[dir.rfind("/")+1:] + "_" + dayHourStr + ".csv"
+        imageInterval = int(self.imageIntervalVar.get())
+        csvOutputFilePath = dir + "/_" + subjectName + "_" + str(imageInterval) + "s_" + dir[dir.rfind("/")+1:] + "_" + dayHourStr + ".csv"
         initialTime = time()
 
         self.imageWindow.handleNextImage()
