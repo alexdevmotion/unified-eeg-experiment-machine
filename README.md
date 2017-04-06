@@ -6,3 +6,5 @@ It allows EEG logging while displaying a set of images to the subject.
 - Git
 - Python 2.7 32bit
 - Python PIL
+
+Just Emotiv Insight
