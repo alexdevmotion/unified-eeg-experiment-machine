@@ -15,7 +15,9 @@ class GUI:
         self.imageWindowDestroyed = True
         self.wirelessStrength = -1
 
-        Label(self.tk, text="Supported headsets: Emotiv Insight").pack(anchor=W)
+        chooseHeadsetFrame = Frame()
+
+        chooseHeadsetLabel = Label(self.tk, text="Choose headset:")
 
         donglePresentFrame = Frame()
         donglePresentLabel = Label(donglePresentFrame, text="Dongle present: ")
