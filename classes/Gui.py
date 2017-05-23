@@ -7,17 +7,14 @@ import datetime
 
 
 class GUI:
-    def __init__(self, tk, threadedTasks):
+    def __init__(self, tk, threadedTasks, isEmotiv):
         self.tk = tk
         self.threadedTasks = threadedTasks
         self.keepCheckingWirelessStrength = False
         self.goFrameBuilt = False
         self.imageWindowDestroyed = True
         self.wirelessStrength = -1
-
-        chooseHeadsetFrame = Frame()
-
-        chooseHeadsetLabel = Label(self.tk, text="Choose headset:")
+        self.isEmotiv = isEmotiv
 
         donglePresentFrame = Frame()
         donglePresentLabel = Label(donglePresentFrame, text="Dongle present: ")
@@ -27,50 +24,59 @@ class GUI:
         self.donglePresentRectangle = self.donglePresentCanvas.create_rectangle(0, 0, 100, 100, fill="black")
         donglePresentFrame.pack(anchor=W)
 
-        wirelessStrengthFrame = Frame()
+        if isEmotiv:
+            wirelessStrengthFrame = Frame()
 
-        wirelessStrengthLabel = Label(wirelessStrengthFrame, text="Wireless strength: ")
-        wirelessStrengthLabel.pack(side=LEFT)
-        self.wirelessStrengthCanvas = Canvas(wirelessStrengthFrame, width=40, height=20)
-        self.wirelessStrengthCanvas.pack(side=LEFT)
-        self.wirelessStrengthRectangle = self.wirelessStrengthCanvas.create_rectangle(0, 0, 100, 100, fill="black")
+            wirelessStrengthLabel = Label(wirelessStrengthFrame, text="Wireless strength: ")
+            wirelessStrengthLabel.pack(side=LEFT)
+            self.wirelessStrengthCanvas = Canvas(wirelessStrengthFrame, width=40, height=20)
+            self.wirelessStrengthCanvas.pack(side=LEFT)
+            self.wirelessStrengthRectangle = self.wirelessStrengthCanvas.create_rectangle(0, 0, 100, 100, fill="black")
 
-        batteryLevelLabel = Label(wirelessStrengthFrame, text="Battery level: ")
-        batteryLevelLabel.pack(side=LEFT)
-        self.batteryLevelVar = StringVar(self.tk)
-        batteryLevel = Label(wirelessStrengthFrame, textvariable=self.batteryLevelVar)
-        batteryLevel.pack(side=LEFT)
+            batteryLevelLabel = Label(wirelessStrengthFrame, text="Battery level: ")
+            batteryLevelLabel.pack(side=LEFT)
+            self.batteryLevelVar = StringVar(self.tk)
+            batteryLevel = Label(wirelessStrengthFrame, textvariable=self.batteryLevelVar)
+            batteryLevel.pack(side=LEFT)
 
-        wirelessStrengthFrame.pack(anchor=W)
+            wirelessStrengthFrame.pack(anchor=W)
 
-        contactQualityFrame = Frame()
-        # AF3, T7, Pz, T8, AF4
-        af3Label = Label(contactQualityFrame, text="AF3: ")
-        af3Label.pack(side=LEFT)
-        self.af3Canvas = Canvas(contactQualityFrame, width=20, height=20)
-        self.af3Canvas.pack(side=LEFT)
-        self.af3Circle = self.af3Canvas.create_oval(2, 2, 20, 20, fill="black")
-        t7Label = Label(contactQualityFrame, text="  T7: ")
-        t7Label.pack(side=LEFT)
-        self.t7Canvas = Canvas(contactQualityFrame, width=20, height=20)
-        self.t7Canvas.pack(side=LEFT)
-        self.t7Circle = self.t7Canvas.create_oval(2, 2, 20, 20, fill="black")
-        pzLabel = Label(contactQualityFrame, text="  Pz: ")
-        pzLabel.pack(side=LEFT)
-        self.pzCanvas = Canvas(contactQualityFrame, width=20, height=20)
-        self.pzCanvas.pack(side=LEFT)
-        self.pzCircle = self.pzCanvas.create_oval(2, 2, 20, 20, fill="black")
-        t8Label = Label(contactQualityFrame, text="  T8: ")
-        t8Label.pack(side=LEFT)
-        self.t8Canvas = Canvas(contactQualityFrame, width=20, height=20)
-        self.t8Canvas.pack(side=LEFT)
-        self.t8Circle = self.t8Canvas.create_oval(2, 2, 20, 20, fill="black")
-        af4Label = Label(contactQualityFrame, text="  AF4: ")
-        af4Label.pack(side=LEFT)
-        self.af4Canvas = Canvas(contactQualityFrame, width=20, height=20)
-        self.af4Canvas.pack(side=LEFT)
-        self.af4Circle = self.af4Canvas.create_oval(2, 2, 20, 20, fill="black")
-        contactQualityFrame.pack(anchor=W)
+            contactQualityFrame = Frame()
+            # AF3, T7, Pz, T8, AF4
+            af3Label = Label(contactQualityFrame, text="AF3: ")
+            af3Label.pack(side=LEFT)
+            self.af3Canvas = Canvas(contactQualityFrame, width=20, height=20)
+            self.af3Canvas.pack(side=LEFT)
+            self.af3Circle = self.af3Canvas.create_oval(2, 2, 20, 20, fill="black")
+            t7Label = Label(contactQualityFrame, text="  T7: ")
+            t7Label.pack(side=LEFT)
+            self.t7Canvas = Canvas(contactQualityFrame, width=20, height=20)
+            self.t7Canvas.pack(side=LEFT)
+            self.t7Circle = self.t7Canvas.create_oval(2, 2, 20, 20, fill="black")
+            pzLabel = Label(contactQualityFrame, text="  Pz: ")
+            pzLabel.pack(side=LEFT)
+            self.pzCanvas = Canvas(contactQualityFrame, width=20, height=20)
+            self.pzCanvas.pack(side=LEFT)
+            self.pzCircle = self.pzCanvas.create_oval(2, 2, 20, 20, fill="black")
+            t8Label = Label(contactQualityFrame, text="  T8: ")
+            t8Label.pack(side=LEFT)
+            self.t8Canvas = Canvas(contactQualityFrame, width=20, height=20)
+            self.t8Canvas.pack(side=LEFT)
+            self.t8Circle = self.t8Canvas.create_oval(2, 2, 20, 20, fill="black")
+            af4Label = Label(contactQualityFrame, text="  AF4: ")
+            af4Label.pack(side=LEFT)
+            self.af4Canvas = Canvas(contactQualityFrame, width=20, height=20)
+            self.af4Canvas.pack(side=LEFT)
+            self.af4Circle = self.af4Canvas.create_oval(2, 2, 20, 20, fill="black")
+            contactQualityFrame.pack(anchor=W)
+        else:
+            headsetPresentFrame = Frame()
+            headsetPresentLabel = Label(headsetPresentFrame, text="Headset present: ")
+            headsetPresentLabel.pack(side=LEFT)
+            self.headsetPresentCanvas = Canvas(headsetPresentFrame, width=60, height=30)
+            self.headsetPresentCanvas.pack(side=RIGHT)
+            self.headsetPresentRectangle = self.headsetPresentCanvas.create_rectangle(0, 0, 100, 100, fill="black")
+            headsetPresentFrame.pack(anchor=W)
 
         self.updateDongleThread()
 
@@ -82,14 +88,25 @@ class GUI:
         result = resultQueue.get()
         self.donglePresentCanvas.itemconfig(self.donglePresentRectangle, fill="black" if result == 0 else "green")
         if result:
-            self.keepCheckingWirelessStrength = True
             self.buildBrowseButtonFrame()
             self.buildFolderInfoFrame()
             self.buildImageIntervalFrame()
             self.buildTotalTimeFrame()
             self.buildCropImagesFrame()
             self.buildSubjectNameFrame()
-            self.tk.after(100, self.updateWirelessThread)
+            if self.isEmotiv:
+                self.keepCheckingWirelessStrength = True
+                self.tk.after(100, self.updateWirelessThread)
+            else:
+                self.tk.after(100, self.updateHeadsetThread)
+
+    def updateHeadsetThread(self):
+        resultQueue = Queue.Queue()
+        self.threadedTasks.checkHeadsetPresent(resultQueue).join()
+        self.openbciHeadsetPresent = resultQueue.get()
+        self.headsetPresentCanvas.itemconfig(self.headsetPresentRectangle, fill="black" if self.openbciHeadsetPresent == 0 else "green")
+
+        self.showHideGoFrame()
 
     def getFillForWirelessStrength(self, wirelessStrength):
         if wirelessStrength == 1:
@@ -199,7 +216,11 @@ class GUI:
             self.goFrameBuilt = False
 
     def isWirelessStrengthValid(self):
-        return self.wirelessStrength > 0
+        return self.wirelessStrength > 0 or not self.isEmotiv
+
+    def isHeadsetPresentValid(self):
+        result = self.openbciHeadsetPresent or self.isEmotiv
+        return self.openbciHeadsetPresent > 0 or self.isEmotiv
 
     def isImageDirectoryValid(self):
         noFiles = self.folderInfoNoFilesVar.get()
@@ -214,7 +235,7 @@ class GUI:
         return len(subjectName) > 0
 
     def showHideGoFrame(self):
-        if self.isWirelessStrengthValid() and self.isImageDirectoryValid() and self.isImageIntervalValid() and self.isSubjectNameValid():
+        if self.isHeadsetPresentValid() and self.isWirelessStrengthValid() and self.isImageDirectoryValid() and self.isImageIntervalValid() and self.isSubjectNameValid():
             if not self.goFrameBuilt:
                 self.buildGoFrame()
         else:
@@ -260,8 +281,10 @@ class GUI:
         subjectName = self.subjectNameVar.get()
         dayHourStr = datetime.datetime.now().strftime("%d%m%Y_%H%M%S")
         imageInterval = int(self.imageIntervalVar.get())
-        csvOutputFilePath = dir + "/_" + subjectName + "_" + str(imageInterval) + "s_" + dir[dir.rfind("/")+1:] + "_" + dayHourStr + ".csv"
-        initialTime = time()
+        prefix = '_' if self.isEmotiv else '__'
+        csvOutputFilePath = dir + "/" + prefix + subjectName + "_" + str(imageInterval) + "s_" + dir[dir.rfind("/")+1:] + "_" + dayHourStr + ".csv"
+        if not self.isEmotiv:
+            self.threadedTasks.waitStreamReady().join()
 
         self.imageWindow.handleNextImage()
-        self.threadedTasks.startEEGLoggingToFile(csvOutputFilePath, initialTime)
+        self.threadedTasks.startEEGLoggingToFile(csvOutputFilePath, time())
