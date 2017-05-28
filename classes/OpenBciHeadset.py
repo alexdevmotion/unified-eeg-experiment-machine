@@ -94,8 +94,10 @@ class OpenBciHeadset:
         csvwriter = csv.writer(csvfile, delimiter=",")
         csvwriter.writerow(header)
 
-        while self.keepLogging:
+        while 1:
             msg = self.interface.recv()
+            if not self.keepLogging:
+                continue
             try:
                 dicty = json.loads(msg)
                 command = dicty.get('command')
@@ -104,7 +106,8 @@ class OpenBciHeadset:
                 if command == 'sample' and self.checkMessage(message):
                     row = [message.get('timeStamp')] if withSync else []
                     row = row + [(time.time() - initialTime), self.currentFileName] + message.get('channelData')
-                    print "Writing row ", row
+                    if verbose:
+                        print "Writing row ", row
                     csvwriter.writerow(row)
             except BaseException as e:
                 print e

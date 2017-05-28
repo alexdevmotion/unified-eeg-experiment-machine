@@ -15,6 +15,7 @@ class GUI:
         self.imageWindowDestroyed = True
         self.wirelessStrength = -1
         self.isEmotiv = isEmotiv
+        self.streamIsReady = False
 
         donglePresentFrame = Frame()
         donglePresentLabel = Label(donglePresentFrame, text="Dongle present: ")
@@ -172,7 +173,7 @@ class GUI:
         imageIntervalEntry = Entry(imageIntervalFrame, textvariable=self.imageIntervalVar)
         imageIntervalEntry.pack(side=LEFT)
         imageIntervalFrame.pack(anchor=W)
-        imageIntervalEntry.insert(0, "5")
+        imageIntervalEntry.insert(0, "3")
         self.imageIntervalVar.trace('w', self.onChange)
 
     def buildTotalTimeFrame(self):
@@ -283,8 +284,9 @@ class GUI:
         imageInterval = int(self.imageIntervalVar.get())
         prefix = '_' if self.isEmotiv else '__'
         csvOutputFilePath = dir + "/" + prefix + subjectName + "_" + str(imageInterval) + "s_" + dir[dir.rfind("/")+1:] + "_" + dayHourStr + ".csv"
-        if not self.isEmotiv:
+        if not self.isEmotiv and not self.streamIsReady:
             self.threadedTasks.waitStreamReady().join()
+            self.streamIsReady = True
 
         self.imageWindow.handleNextImage()
         self.threadedTasks.startEEGLoggingToFile(csvOutputFilePath, time())
