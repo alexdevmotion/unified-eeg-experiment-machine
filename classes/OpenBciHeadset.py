@@ -3,6 +3,9 @@ import time
 import zmq
 import subprocess
 import csv
+import os
+import signal
+from time import sleep
 
 verbose = False
 withSync = False
@@ -12,15 +15,10 @@ class OpenBciHeadset:
         self.interface = Interface(verbose=verbose)
         self.startNode()
         self.keepLogging = True
-        # if self.isDongleReady():
-        #     print 'Node is ready'
-        #     print 'Headset: ', self.checkHeadsetPresent()
-        #     self.startLoggingToFile('caca.csv', time.time())
-        # else:
-        #     print 'Node is shit'
+        self.doneLogging = False
 
     def startNode(self):
-        subprocess.Popen('start-node.bat', shell=True, stdin=None, stdout=None, stderr=None, close_fds=True)
+        self.nodeSubProcess = subprocess.Popen('start-node.bat', shell=True, stdin=None, stdout=None, stderr=None, close_fds=True)
 
     def isDongleReady(self):
         while True:
@@ -70,12 +68,17 @@ class OpenBciHeadset:
         return False
 
     def stopLoggingToFile(self):
-        self.keepLogging = False
-
-    def stop(self):
+        self.doneLogging = True
         self.interface.send(json.dumps({
             'command': 'stop'
         }))
+
+    def kill(self):
+        self.interface.send(json.dumps({
+            'command': 'kill'
+        }))
+        sleep(0.3)
+        os.kill(self.nodeSubProcess.pid, signal.SIGTERM)
 
     def startLoggingToFile(self, filePath, initialTime):
         self.interface.send(json.dumps({
@@ -94,10 +97,11 @@ class OpenBciHeadset:
         csvwriter = csv.writer(csvfile, delimiter=",")
         csvwriter.writerow(header)
 
-        while 1:
+        self.doneLogging = False
+        while not self.doneLogging:
             msg = self.interface.recv()
             if not self.keepLogging:
-                continue
+                break
             try:
                 dicty = json.loads(msg)
                 command = dicty.get('command')

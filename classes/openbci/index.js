@@ -186,8 +186,12 @@ var processInterfaceObject = (body) => {
             console.log('Node will start streaming')
             break;
         case 'stop':
+            console.log('Node will stop streaming. NOT.')
+            break;
+        case 'kill':
             ourBoard.streamStop()
-            console.log('Node will stop streaming')
+            console.log('Node will kill streaming')
+            break;
         default:
             unrecognizedCommand(body);
             break;

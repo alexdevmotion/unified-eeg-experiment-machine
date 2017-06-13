@@ -30,11 +30,13 @@ class OpenBciThreadedTasks:
     def startEEGLoggingToFile(self, filePath, initialTime):
         self.openbci.startLoggingToFile(filePath, initialTime)
 
+    @threaded
     def stopLoggingToFile(self):
         self.openbci.stopLoggingToFile()
 
-    def stop(self):
-        self.openbci.stop()
+    @threaded
+    def kill(self):
+        self.openbci.kill()
 
     def setCurrentFileName(self, fileName):
         self.openbci.setCurrentFileName(fileName)

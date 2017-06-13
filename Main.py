@@ -13,7 +13,7 @@ def onWindowClose():
     if isEmotiv:
         emotivHeadsetTasks.emotiv.engineDisconnect()
     if isOpenbci:
-        openbciTasks.openbci.stop()
+        openbciTasks.openbci.kill()
 
 def startEmotiv():
     isEmotiv = True
